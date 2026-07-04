@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Мастер будущего — квиз Beauty Market</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  body { margin: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+// ═══════════════════════════════════════════════════════════
+//  НАСТРОЙКИ — заполнить перед запуском
+// ═══════════════════════════════════════════════════════════
+
+// 1. Номер WhatsApp менеджера, международный формат без «+»
+const WHATSAPP_PHONE = "972515572183";
+
+// 2. PIN экрана ведущего
+const DASH_PIN = "2026";
+
+// 3. Стоимость подписки Beauty Calendar, ₪/мес
+const CRM_MONTHLY = 0;
+
+// 4. Конфиг Firebase: console.firebase.google.com → ваш проект →
+//    Project settings → General → Your apps → Web app → firebaseConfig
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBINwumnWQ5RpzegIWvgAxYA43q_HxXh3k",
+  authDomain: "beauty-quiz-1fcd6.firebaseapp.com",
+  databaseURL: "https://beauty-quiz-1fcd6-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "beauty-quiz-1fcd6",
+};
+
+// ═══════════════════════════════════════════════════════════
+
+let db = null;
+try {
+  if (FIREBASE_CONFIG.apiKey !== "TODO") {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+  }
+} catch (e) { console.error("Firebase init failed", e); }
+
+const waLink = (productName) =>
+  `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(
+    `Здравствуйте! Я с вечера «Мастер будущего», хочу начать экономить. Мой результат: ${productName}`
+  )}`;
+
+const PRODUCTS = {
+  space: { name: "Beauty Space", tag: "Бьюти-коворкинг: кабинет по часам", color: "#00E7DF", dark: "#008F8A" },
+  crm: { name: "Beauty Calendar", tag: "Календарь записи, напоминания, база клиентов", color: "#7070FF", dark: "#4B4BD6" },
+  market: { name: "Beauty Market", tag: "Маркетплейс бьюти-услуг в Израиле", color: "#FF7171", dark: "#E04A4A" },
+};
+
+const ROLES = {
+  master: "Бьюти-мастер",
+  owner: "Владелица салона",
+  client: "Пользуюсь бьюти-услугами",
+  other: "Просто интересуюсь",
+};
+
+const BRANCHES = {
+  master: [
+    { id: "spec", q: "Ваша специализация?", opts: [
+      { t: "Косметология", v: "cosm" }, { t: "Маникюр / педикюр", v: "nails" },
+      { t: "Массаж, SPA", v: "spa" }, { t: "Парикмахер", v: "hair" },
+      { t: "Визаж, брови, ресницы", v: "makeup" }, { t: "Другое", v: "other" },
+    ]},
+    { id: "workspace", q: "Где вы принимаете клиентов?", opts: [
+      { t: "Свой кабинет с фикс. арендой", v: "own" }, { t: "Арендую место в салоне", v: "salon" },
+      { t: "Принимаю дома", v: "home" }, { t: "Выезжаю к клиентам", v: "mobile" },
+    ]},
+    { id: "city", q: "Где вам удобно принимать клиентов?", opts: [
+      { t: "Петах-Тиква", v: "pt" }, { t: "Ашдод", v: "ashdod" },
+      { t: "Подойдут оба города", v: "both" }, { t: "Другой город", v: "other" },
+    ]},
+    { id: "rent", type: "input", q: "Сколько платите за кабинет в месяц?", placeholder: "Например, 5000" },
+    { id: "hours", q: "Сколько часов в неделю вы реально принимаете клиентов?", opts: [
+      { t: "До 10 часов", v: 8 }, { t: "10–20 часов", v: 15 },
+      { t: "20–30 часов", v: 25 }, { t: "Больше 30 часов", v: 34 },
+    ]},
+    { id: "noshow", q: "Сколько записей срывается в месяц (отмены, неявки)?", opts: [
+      { t: "Почти не бывает", v: 1 }, { t: "2–4 записи", v: 3 },
+      { t: "5–8 записей", v: 6 }, { t: "Больше 8", v: 10 },
+    ]},
+    { id: "check", q: "Ваш средний чек?", opts: [
+      { t: "До ₪150", v: 120 }, { t: "₪150 – 300", v: 220 },
+      { t: "₪300 – 500", v: 400 }, { t: "Больше ₪500", v: 600 },
+    ]},
+    { id: "base", q: "Где живёт ваша база клиентов?", opts: [
+      { t: "В голове и WhatsApp", v: "chat" }, { t: "В Instagram", v: "insta" },
+      { t: "Тетрадь или Excel", v: "excel" }, { t: "Уже в CRM", v: "crm" },
+    ]},
+    { id: "demand", q: "Как у вас с записью?", opts: [
+      { t: "Запись полная", v: "full" }, { t: "Хочу больше клиентов", v: "more" }, { t: "Только начинаю", v: "start" },
+    ]},
+  ],
+  owner: [
+    { id: "noshow", q: "Сколько записей срывается в салоне за месяц?", opts: [
+      { t: "До 5", v: 4 }, { t: "5–15", v: 10 }, { t: "15–30", v: 22 }, { t: "Больше 30", v: 35 },
+    ]},
+    { id: "check", q: "Средний чек в салоне?", opts: [
+      { t: "До ₪150", v: 120 }, { t: "₪150 – 300", v: 220 },
+      { t: "₪300 – 500", v: 400 }, { t: "Больше ₪500", v: 600 },
+    ]},
+    { id: "admin", q: "Как ведёте записи и клиентов?", opts: [
+      { t: "Вручную: телефон, WhatsApp", v: "manual" }, { t: "Частично автоматизировано", v: "partial" }, { t: "Полноценная CRM", v: "crm" },
+    ]},
+  ],
+  client: [
+    { id: "freq", q: "Как часто пользуетесь бьюти-услугами?", opts: [
+      { t: "Каждую неделю", v: 4 }, { t: "2–3 раза в месяц", v: 2.5 }, { t: "Раз в месяц", v: 1 }, { t: "Реже", v: 0.5 },
+    ]},
+    { id: "spend", q: "Сколько обычно оставляете за визит?", opts: [
+      { t: "До ₪150", v: 120 }, { t: "₪150 – 300", v: 220 }, { t: "₪300 – 500", v: 380 }, { t: "Больше ₪500", v: 550 },
+    ]},
+    { id: "search", q: "Как ищете нового мастера?", opts: [
+      { t: "По рекомендациям знакомых", v: "friends" }, { t: "Instagram и соцсети", v: "insta" },
+      { t: "Google и карты", v: "google" }, { t: "Хожу к одному мастеру годами", v: "loyal" },
+    ]},
+  ],
+};
+
+const round10 = (n) => Math.max(0, Math.round(n / 10) * 10);
+const fmt = (n) => Math.round(n).toLocaleString("en-US");
+
+const SPACE_RATES = {
+  cosm:   { 30: 55, 60: 50, 90: 48 },
+  nails:  { 30: 39, 60: 36, 90: 34 },
+  spa:    { 30: 51, 60: 47, 90: 44 },
+  hair:   { 30: 35, 60: 32, 90: 31 },
+  makeup: { 30: 31, 60: 29, 90: 27 },
+  other:  { 30: 39, 60: 36, 90: 34 },
+};
+
+function spaceCost(spec, weeklyHours) {
+  const rates = SPACE_RATES[spec] || SPACE_RATES.other;
+  const monthly = weeklyHours * 4.3;
+  const tier = monthly <= 35 ? 30 : monthly <= 65 ? 60 : 90;
+  return { cost: monthly * rates[tier], tier, rate: rates[tier] };
+}
+
+function computeResult(role, a) {
+  let space = 0, crm = 0, market = 0;
+  const details = {};
+  const info = {};
+  if (role === "master") {
+    const paysRent = a.workspace === "own" || a.workspace === "salon";
+    const cityOk = a.city !== "other";
+    const minRate = (SPACE_RATES[a.spec] || SPACE_RATES.other)[90];
+    if (paysRent && a.rent > 0 && cityOk) {
+      const { cost, tier } = spaceCost(a.spec, a.hours);
+      space = round10(a.rent - cost);
+      if (space > 0) {
+        details.space = `Ваши ~${Math.round(a.hours * 4.3)} ч/мес по абонементу ${tier} ч — ₪${fmt(cost)} вместо ₪${fmt(a.rent)} аренды`;
+      } else {
+        info.space = `При вашей загрузке аренда окупается. А для гибких часов или второго города — кабинет от ₪${minRate}/ч без обязательств`;
+      }
+    } else if (!cityOk) {
+      info.space = `Наши коворкинги — в Петах-Тикве и Ашдоде. Будете рядом — кабинет по часам от ₪${minRate}/ч, без фиксированной аренды`;
+    } else {
+      info.space = `Приём дома — потолок по чеку. Профессиональный кабинет от ₪${minRate}/ч поднимает статус и цену услуги — без фиксированной аренды`;
+    }
+    crm = round10(a.noshow * a.check * 0.4 + (a.base === "crm" ? 0 : 400) - CRM_MONTHLY);
+    if (a.demand === "more" || a.demand === "start") {
+      market = round10(3 * a.check);
+      details.market = `+2–4 новых клиента в месяц ≈ ₪${fmt(round10(2 * a.check))}–${fmt(round10(4 * a.check))}`;
+    }
+  } else if (role === "owner") {
+    crm = round10(a.noshow * a.check * 0.35 + (a.admin === "manual" ? 800 : a.admin === "partial" ? 400 : 0) - CRM_MONTHLY);
+    market = round10(3 * a.check);
+    details.market = `+2–4 новых клиента в месяц ≈ ₪${fmt(round10(2 * a.check))}–${fmt(round10(4 * a.check))}`;
+    info.space = "Нужен мастер на подмену или расширение без стройки? Кабинеты по часам в Петах-Тикве и Ашдоде";
+  } else {
+    market = round10(a.freq * a.spend * 0.12 + a.freq * 30);
+    details.market = "Сравнение цен, акции и запись без переписок";
+  }
+  const parts = [
+    { key: "space", val: space }, { key: "crm", val: crm }, { key: "market", val: market },
+  ].filter((p) => p.val > 0);
+  parts.sort((x, y) => y.val - x.val);
+  const total = parts.reduce((s, p) => s + p.val, 0);
+  const primary = parts[0] ? parts[0].key : "market";
+  return { total: Math.max(total, 60), primary, parts: parts.length ? parts : [{ key: "market", val: 60 }], details, info };
+}
+
+function Logo({ size = 44 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 59 59" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M41.6236 16.135C44.9642 14.2469 49.0835 13.9772 52.6251 14.2714C53.7303 14.3695 54.735 14.5166 55.589 14.6883C55.3127 15.4975 54.936 16.4293 54.4587 17.3856C52.9517 20.5489 50.666 23.8838 47.3002 25.7719C43.9344 27.66 39.8402 27.9298 36.2986 27.6355C35.1935 27.5374 34.1888 27.3903 33.3348 27.2187C33.611 26.4095 33.9878 25.4777 34.4651 24.5213C35.9721 21.3581 38.2829 18.0232 41.6236 16.135ZM27.633 2.305C28.261 1.42224 28.914 0.662076 29.4666 0C30.0443 0.637554 30.6723 1.42224 31.3002 2.305C33.3599 5.14948 35.1683 8.75411 35.1683 12.5304C35.1683 16.3067 33.3599 19.9113 31.3002 22.7558C30.6723 23.6386 30.0192 24.3987 29.4666 25.0608C28.8889 24.4232 28.261 23.6386 27.633 22.7558C25.5734 19.9113 23.7649 16.3067 23.7649 12.5304C23.7649 8.75411 25.5734 5.14948 27.633 2.305ZM11.6331 25.7719C8.29242 23.8838 5.9816 20.5489 4.47453 17.3856C4.02242 16.4048 3.64565 15.4975 3.34424 14.6883C4.19824 14.5166 5.20295 14.3695 6.30813 14.2714C9.84972 13.9526 13.969 14.2469 17.3097 16.135C20.6503 18.0232 22.9612 21.3581 24.4682 24.5213C24.9203 25.5022 25.2971 26.4095 25.5985 27.2187C24.7445 27.3903 23.7398 27.5374 22.6346 27.6355C19.093 27.9298 14.9737 27.66 11.6331 25.7719ZM17.3348 42.6671C13.9941 44.5552 9.87484 44.825 6.33324 44.5307C5.22806 44.4326 4.22336 44.2855 3.36936 44.1139C3.64565 43.3046 4.02242 42.3728 4.49965 41.4165C6.00671 38.2533 8.29242 34.9184 11.6582 33.0302C14.9988 31.1421 19.1181 30.8723 22.6597 31.1666C23.7649 31.2647 24.7696 31.4118 25.6236 31.5835C25.3473 32.3927 24.9706 33.3245 24.4933 34.2808C22.9863 37.4195 20.7006 40.779 17.3348 42.6671ZM31.3002 56.6197C30.6723 57.5025 30.0192 58.2627 29.4666 58.9247C28.8889 58.2872 28.261 57.5025 27.633 56.6197C25.5734 53.7752 23.7649 50.1706 23.7649 46.3943C23.7649 42.618 25.5734 39.0134 27.633 36.1689C28.261 35.2862 28.914 34.526 29.4666 33.8639C30.0443 34.5015 30.6723 35.2862 31.3002 36.1689C33.3599 39.0134 35.1683 42.618 35.1683 46.3943C35.1683 50.1461 33.3599 53.7752 31.3002 56.6197ZM54.2829 47.3261L46.396 42.8633L45.4164 48.3315L33.385 31.5589L54.2578 33.3735L49.9375 36.9046L57.8496 41.4165L54.2829 47.3261Z" fill="#00E7DF"/>
+    </svg>
+  );
+}
+
+function CountUp({ value, prefix = "", dur = 1400, style }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let raf, start;
+    const step = (ts) => {
+      if (!start) start = ts;
+      const p = Math.min((ts - start) / dur, 1);
+      setN(Math.round(value * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value, dur]);
+  return <span style={style}>{prefix}₪{n.toLocaleString("en-US")}</span>;
+}
+
+function App() {
+  const [mode, setMode] = useState("home");
+  const [nick, setNick] = useState("");
+  const [role, setRole] = useState(null);
+  const [step, setStep] = useState(-1);
+  const [answers, setAnswers] = useState({});
+  const [result, setResult] = useState(null);
+  const [saveState, setSaveState] = useState("idle");
+  const [pin, setPin] = useState("");
+  const [numInput, setNumInput] = useState("");
+  const [period, setPeriod] = useState("month");
+  const [resps, setResps] = useState([]);
+
+  // Живая подписка на результаты для экрана ведущего
+  useEffect(() => {
+    if (mode !== "dash" || !db) return;
+    const ref = db.ref("responses");
+    const cb = ref.on("value", (snap) => {
+      const val = snap.val() || {};
+      setResps(Object.values(val));
+    });
+    return () => ref.off("value", cb);
+  }, [mode]);
+
+  const resetAll = async () => {
+    if (!db) return;
+    if (!window.confirm("Удалить все ответы участников?")) return;
+    try { await db.ref("responses").remove(); } catch (e) {}
+  };
+
+  const questions = role && role !== "other" ? BRANCHES[role] : BRANCHES.client;
+  const branchKey = role === "other" ? "client" : role;
+
+  const pick = (qid, v) => {
+    const next = { ...answers, [qid]: v };
+    setAnswers(next);
+    let s = step + 1;
+    if (branchKey === "master" && qid === "city" && (next.workspace === "home" || next.workspace === "mobile")) {
+      next.rent = 0;
+      s = step + 2;
+    }
+    if (s >= questions.length) finish(next);
+    else setStep(s);
+  };
+
+  const finish = async (finalAnswers) => {
+    const r = computeResult(branchKey, finalAnswers);
+    setResult(r);
+    setMode("result");
+    setSaveState("saving");
+    try {
+      if (!db) throw new Error("no db");
+      await db.ref("responses").push({
+        n: nick || "Аноним",
+        role,
+        city: finalAnswers.city || null,
+        total: r.total,
+        primary: r.primary,
+        ts: Date.now(),
+      });
+      setSaveState("ok");
+    } catch (e) {
+      setSaveState("err");
+    }
+  };
+
+  const restart = () => {
+    setMode("home"); setRole(null); setStep(-1); setAnswers({}); setResult(null);
+    setSaveState("idle"); setPeriod("month"); setNumInput("");
+  };
+
+  const totalSum = resps.reduce((s, r) => s + (r.total || 0), 0);
+  const byRole = {}, byProduct = {}, byCity = {};
+  const CITY_LABELS = { pt: "Петах-Тиква", ashdod: "Ашдод", both: "Оба города", other: "Другой город" };
+  resps.forEach((r) => {
+    byRole[r.role] = (byRole[r.role] || 0) + 1;
+    byProduct[r.primary] = (byProduct[r.primary] || 0) + 1;
+    if (r.city) byCity[r.city] = (byCity[r.city] || 0) + 1;
+  });
+  const leaders = [...resps].sort((a, b) => b.total - a.total).slice(0, 5);
+  const progress = role ? (step + 1) / questions.length : 0;
+
+  return (
+    <div className="root">
+      <style>{`
+        .root { min-height: 100vh; background: #FFFFFF; color: #17171C; font-family: 'Inter', system-ui, sans-serif;
+          display: flex; flex-direction: column; align-items: center; padding: 28px 16px 56px; box-sizing: border-box; }
+        .wrap { width: 100%; max-width: 460px; }
+        .wrapWide { width: 100%; max-width: 1060px; }
+        .eyebrow { letter-spacing: .14em; text-transform: uppercase; font-size: 11px; color: #9A9AA6; font-weight: 600; }
+        .btnOpt { display: block; width: 100%; text-align: left; background: #FFFFFF; border: 1px solid #E7E7ED; color: #17171C;
+          border-radius: 12px; padding: 15px 16px; margin-top: 10px; font-family: 'Inter', sans-serif; font-size: 15.5px;
+          font-weight: 500; cursor: pointer; transition: border-color .12s ease, background .12s ease; box-sizing: border-box; }
+        .btnOpt:hover, .btnOpt:focus-visible { border-color: #17171C; background: #FAFAFB; outline: none; }
+        .btnMain { background: #17171C; color: #FFFFFF; border: none; border-radius: 12px; padding: 15px 24px;
+          font-family: 'Inter', sans-serif; font-weight: 600; font-size: 15px; cursor: pointer; width: 100%; margin-top: 16px; }
+        .btnMain:hover { opacity: .9; }
+        .btnGhost { background: none; border: 1px solid #E7E7ED; color: #62626E; border-radius: 10px; padding: 9px 16px;
+          font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; margin-top: 12px; }
+        .btnGhost:hover { border-color: #17171C; color: #17171C; }
+        .input { width: 100%; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E7E7ED; border-radius: 12px;
+          padding: 15px 16px; color: #17171C; font-size: 16px; font-family: 'Inter', sans-serif; margin-top: 20px; }
+        .input::placeholder { color: #9A9AA6; }
+        .input:focus { outline: none; border-color: #17171C; }
+        .card { background: #FFFFFF; border: 1px solid #E7E7ED; border-radius: 14px; padding: 18px; margin-top: 12px; }
+        .bar { height: 4px; border-radius: 99px; background: #EFEFF3; overflow: hidden; margin-top: 16px; }
+        .barFill { height: 100%; background: #17171C; transition: width .3s ease; border-radius: 99px; }
+        a { text-decoration: none; }
+      `}</style>
+
+      {mode === "home" && (
+        <div className="wrap" style={{ marginTop: 36 }}>
+          <Logo size={46} />
+          <div className="eyebrow" style={{ marginTop: 20 }}>Beauty Market · Квиз вечера</div>
+          <h1 style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.12, letterSpacing: "-0.02em", margin: "10px 0 0" }}>
+            Мастер будущего
+          </h1>
+          <p style={{ color: "#62626E", fontSize: 16, lineHeight: 1.55, marginTop: 12 }}>
+            Пара минут. Узнайте, сколько денег вы теряете каждый месяц — и как их вернуть.
+          </p>
+          <input className="input" placeholder="Ваше имя или ник" value={nick} maxLength={24}
+            onChange={(e) => setNick(e.target.value)} />
+          <p style={{ fontSize: 12.5, color: "#9A9AA6", marginTop: 8 }}>
+            Ник и результат появятся в общей статистике на экране зала.
+          </p>
+          <button className="btnMain" onClick={() => { setMode("quiz"); setStep(-1); }}>Начать</button>
+          <div style={{ textAlign: "center" }}>
+            <button className="btnGhost" style={{ border: "none" }} onClick={() => setMode("pin")}>Экран ведущего</button>
+          </div>
+        </div>
+      )}
+
+      {mode === "quiz" && (
+        <div className="wrap" style={{ marginTop: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Logo size={24} />
+            <div className="bar" style={{ flex: 1, marginTop: 0 }}>
+              <div className="barFill" style={{ width: `${Math.max(progress * 100, 5)}%` }} />
+            </div>
+          </div>
+          {step === -1 ? (
+            <React.Fragment>
+              <h2 style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 28 }}>Кто вы сегодня?</h2>
+              {Object.entries(ROLES).map(([k, label]) => (
+                <button key={k} className="btnOpt" onClick={() => { setRole(k); setStep(0); }}>{label}</button>
+              ))}
+            </React.Fragment>
+          ) : (
+            <React.Fragment>
+              <div className="eyebrow" style={{ marginTop: 28 }}>Вопрос {step + 1} из {questions.length}</div>
+              <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 8, lineHeight: 1.35 }}>
+                {questions[step].q}
+              </h2>
+              {questions[step].type === "input" ? (
+                <React.Fragment>
+                  <input className="input" type="text" inputMode="numeric"
+                    placeholder={questions[step].placeholder || ""} value={numInput}
+                    onChange={(e) => setNumInput(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))} />
+                  <button className="btnMain"
+                    onClick={() => { pick(questions[step].id, parseInt(numInput || "0", 10)); setNumInput(""); }}>
+                    Далее
+                  </button>
+                  <button className="btnGhost" style={{ border: "none", display: "block", margin: "8px auto 0" }}
+                    onClick={() => { pick(questions[step].id, 0); setNumInput(""); }}>
+                    Не плачу аренду
+                  </button>
+                </React.Fragment>
+              ) : (
+                questions[step].opts.map((o) => (
+                  <button key={o.t} className="btnOpt" onClick={() => pick(questions[step].id, o.v)}>{o.t}</button>
+                ))
+              )}
+            </React.Fragment>
+          )}
+        </div>
+      )}
+
+      {mode === "result" && result && (
+        <div className="wrap" style={{ marginTop: 28, textAlign: "center" }}>
+          <Logo size={36} />
+          <div className="eyebrow" style={{ marginTop: 16 }}>{nick ? `${nick} · ваш результат` : "Ваш результат"}</div>
+          <p style={{ color: "#62626E", marginTop: 16, marginBottom: 2, fontSize: 15 }}>
+            {branchKey === "client" ? "Бьюти-экосистема сэкономит вам примерно" : "Бьюти-экосистема дополнительно принесёт вам"}
+          </p>
+          <CountUp key={period} value={result.total * (period === "year" ? 12 : 1)} prefix="~+"
+            style={{ fontSize: 54, fontWeight: 800, letterSpacing: "-0.03em", color: "#17171C", display: "block" }} />
+          <div style={{ display: "inline-flex", background: "#F5F5F8", borderRadius: 10, padding: 3, marginTop: 10 }}>
+            {[["month", "в месяц"], ["year", "в год"]].map(([k, label]) => (
+              <button key={k} onClick={() => setPeriod(k)}
+                style={{ border: "none", cursor: "pointer", borderRadius: 8, padding: "7px 16px",
+                  fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600,
+                  background: period === k ? "#17171C" : "transparent", color: period === k ? "#FFFFFF" : "#62626E" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ textAlign: "left", marginTop: 22 }}>
+            {result.parts.map((p) => {
+              const pr = PRODUCTS[p.key];
+              return (
+                <div key={p.key} className="card">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: pr.dark }}>{pr.name}</span>
+                    <span style={{ fontWeight: 700, fontSize: 17 }}>+₪{fmt(p.val * (period === "year" ? 12 : 1))}</span>
+                  </div>
+                  <div style={{ color: "#62626E", fontSize: 13.5, marginTop: 5 }}>{pr.tag}</div>
+                  {result.details && result.details[p.key] && (
+                    <div style={{ color: "#17171C", fontSize: 13, fontWeight: 500, marginTop: 10, background: "#F5F5F8", borderRadius: 8, padding: "8px 10px" }}>
+                      {result.details[p.key]}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {result.info && result.info.space && (
+              <div className="card" style={{ borderStyle: "dashed" }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: PRODUCTS.space.dark }}>{PRODUCTS.space.name}</span>
+                <div style={{ color: "#62626E", fontSize: 13.5, marginTop: 8, lineHeight: 1.5 }}>{result.info.space}</div>
+              </div>
+            )}
+          </div>
+
+          <a href={waLink(PRODUCTS[result.primary].name)} target="_blank" rel="noreferrer">
+            <button className="btnMain" style={{ marginTop: 20 }}>Начать экономить</button>
+          </a>
+
+          <p style={{ fontSize: 11.5, color: "#9A9AA6", marginTop: 18, lineHeight: 1.5 }}>
+            Оценка на основе ваших ответов, прайса Beauty Space (Ашдод, Петах-Тиква) и средних показателей рынка.
+            {saveState === "err" && " Не удалось отправить результат в общую статистику."}
+          </p>
+          <button className="btnGhost" onClick={restart}>Пройти ещё раз</button>
+        </div>
+      )}
+
+      {mode === "pin" && (
+        <div className="wrap" style={{ marginTop: 60, textAlign: "center" }}>
+          <Logo size={36} />
+          <div className="eyebrow" style={{ marginTop: 16 }}>Экран ведущего</div>
+          <input className="input" type="password" placeholder="PIN" value={pin}
+            onChange={(e) => setPin(e.target.value)} style={{ textAlign: "center", letterSpacing: ".3em" }} />
+          <button className="btnMain" onClick={() => { if (pin === DASH_PIN) setMode("dash"); }}>Войти</button>
+          <button className="btnGhost" style={{ border: "none" }} onClick={() => setMode("home")}>← Назад</button>
+        </div>
+      )}
+
+      {mode === "dash" && (
+        <div className="wrapWide" style={{ marginTop: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Logo size={28} />
+              <div className="eyebrow">Мастер будущего · Живая статистика</div>
+            </div>
+            <div style={{ fontSize: 12, color: "#9A9AA6" }}>
+              {db ? "обновляется в реальном времени" : "Firebase не настроен — статистика недоступна"}
+            </div>
+          </div>
+
+          <div style={{ textAlign: "center", margin: "36px 0 8px" }}>
+            <div style={{ color: "#62626E", fontSize: "clamp(15px, 2vw, 22px)" }}>
+              Этот зал теряет каждый месяц — и может вернуть:
+            </div>
+            <CountUp key={totalSum} value={totalSum} dur={900}
+              style={{ fontSize: "clamp(56px, 9vw, 112px)", fontWeight: 800, letterSpacing: "-0.03em", color: "#17171C" }} />
+            <div style={{ color: "#62626E", fontSize: "clamp(13px, 1.6vw, 18px)", marginTop: 4 }}>
+              {resps.length} участников · в среднем ₪{resps.length ? fmt(totalSum / resps.length) : 0} на человека
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginTop: 24 }}>
+            <div className="card">
+              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: PRODUCTS.market.dark }}>Лидеры экономии</div>
+              {leaders.length === 0 && <div style={{ color: "#9A9AA6", fontSize: 14, marginTop: 12 }}>Ждём первых участников…</div>}
+              {leaders.map((r, i) => (
+                <div key={(r.ts || i) + (r.n || "")} style={{ display: "flex", justifyContent: "space-between", marginTop: 12, fontSize: 15.5 }}>
+                  <span><span style={{ color: "#9A9AA6", fontWeight: 600, marginRight: 8 }}>{i + 1}</span>{r.n}</span>
+                  <span style={{ fontWeight: 700 }}>₪{fmt(r.total || 0)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="card">
+              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#17171C" }}>Кто в зале</div>
+              {Object.entries(ROLES).map(([k, label]) => {
+                const c = byRole[k] || 0;
+                const pct = resps.length ? (c / resps.length) * 100 : 0;
+                return (
+                  <div key={k} style={{ marginTop: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                      <span style={{ color: "#62626E" }}>{label}</span><span style={{ fontWeight: 600 }}>{c}</span>
+                    </div>
+                    <div className="bar" style={{ marginTop: 6, height: 5 }}>
+                      <div className="barFill" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="card">
+              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: PRODUCTS.crm.dark }}>Главное решение для зала</div>
+              {Object.entries(PRODUCTS).map(([k, pr]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", marginTop: 12, fontSize: 15 }}>
+                  <span style={{ color: pr.dark, fontWeight: 600 }}>{pr.name}</span>
+                  <span style={{ fontWeight: 700 }}>{byProduct[k] || 0}</span>
+                </div>
+              ))}
+            </div>
+            <div className="card">
+              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: PRODUCTS.space.dark }}>Где хотят работать</div>
+              {Object.entries(CITY_LABELS).map(([k, label]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", marginTop: 12, fontSize: 15 }}>
+                  <span style={{ color: "#62626E" }}>{label}</span>
+                  <span style={{ fontWeight: 700 }}>{byCity[k] || 0}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "center" }}>
+            <button className="btnGhost" onClick={resetAll} style={{ color: PRODUCTS.market.dark }}>Сбросить данные</button>
+            <button className="btnGhost" onClick={() => setMode("home")}>← К квизу</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
