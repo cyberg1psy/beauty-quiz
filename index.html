@@ -12,15 +12,12 @@
 <div id="root"></div>
 
 <script>
-// Показать понятную ошибку вместо белого экрана
 function showFatal(msg){
   var r = document.getElementById('root');
   if (r) r.innerHTML = '<div style="padding:24px;color:#b00;max-width:640px;margin:40px auto;font-family:system-ui">'
     + '<h3>Страница не загрузилась</h3><p>' + msg + '</p>'
-    + '<p style="color:#555">Обновите страницу. Если не помогает — возможно, ваша сеть блокирует внешние библиотеки (jsdelivr / gstatic). Попробуйте другой Wi-Fi или мобильный интернет.</p></div>';
+    + '<p style="color:#555">Обновите страницу. Если не помогает — возможно, сеть блокирует внешние библиотеки. Попробуйте другой Wi-Fi или мобильный интернет.</p></div>';
 }
-
-// Загрузчик скрипта с запасным адресом
 function loadScript(urls, cb){
   var i = 0;
   function tryNext(){
@@ -33,24 +30,20 @@ function loadScript(urls, cb){
   }
   tryNext();
 }
-
-// Последовательно грузим React, ReactDOM, html2canvas, Firebase — с fallback CDN
 var steps = [
-  [['https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js',
-    'https://unpkg.com/react@18.2.0/umd/react.production.min.js']],
-  [['https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js',
-    'https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js']],
-  [['https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
-    'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js']],
-  [['https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js']],
-  [['https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js']]
+  ['https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js',
+   'https://unpkg.com/react@18.2.0/umd/react.production.min.js'],
+  ['https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js',
+   'https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js'],
+  ['https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+   'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js'],
+  ['https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js'],
+  ['https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js']
 ];
-
 function runSteps(idx){
   if (idx >= steps.length){ startApp(); return; }
-  loadScript(steps[idx][0], function(err){
+  loadScript(steps[idx], function(err){
     if (err){
-      // html2canvas и firebase не критичны для показа квиза — пропускаем
       if (idx >= 2){ runSteps(idx+1); return; }
       showFatal('Не удалось загрузить React: ' + err.message);
       return;
@@ -58,28 +51,16 @@ function runSteps(idx){
     runSteps(idx+1);
   });
 }
-
 function startApp(){
-  if (typeof React === 'undefined' || typeof ReactDOM === 'undefined'){
-    showFatal('React не определён после загрузки.');
-    return;
-  }
-  try {
-    APP_CODE();
-  } catch(e){
-    showFatal('Ошибка запуска: ' + (e && e.message ? e.message : e));
-  }
+  if (typeof React === 'undefined' || typeof ReactDOM === 'undefined'){ showFatal('React не определён.'); return; }
+  try { APP_CODE(); } catch(e){ showFatal('Ошибка запуска: ' + (e && e.message ? e.message : e)); }
 }
-
 window.addEventListener('error', function(e){
-  if (!document.getElementById('root').hasChildNodes()){
-    showFatal((e && e.message) || 'неизвестная ошибка');
-  }
+  if (!document.getElementById('root').hasChildNodes()){ showFatal((e && e.message) || 'неизвестная ошибка'); }
 });
 </script>
 
 <script>
-// Код приложения обёрнут в функцию, чтобы выполниться ТОЛЬКО после загрузки React
 function APP_CODE(){
 const {
   useState,
@@ -130,7 +111,7 @@ const PRODUCTS = {
   },
   crm: {
     name: "Beauty Calendar",
-    tag: "Календарь записи, напоминания, база клиентов",
+    tag: "Запись, напоминания, база клиентов. Повышает лояльность и возвращаемость, экономит время и поднимает чек до +10%",
     color: "#7070FF",
     dark: "#4B4BD6"
   },
@@ -188,25 +169,43 @@ const BRANCHES = {
     }]
   }, {
     id: "city",
-    q: "Где вам удобно принимать клиентов?",
+    q: "В каком городе вы работаете?",
     opts: [{
-      t: "Петах-Тиква",
-      v: "pt"
-    }, {
       t: "Ашдод",
       v: "ashdod"
     }, {
-      t: "Подойдут оба города",
-      v: "both"
+      t: "Ришон-ле-Цион",
+      v: "rishon"
     }, {
-      t: "Другой город",
-      v: "other"
+      t: "Тель-Авив",
+      v: "ta"
+    }, {
+      t: "Нетания",
+      v: "netanya"
+    }, {
+      t: "Петах-Тиква",
+      v: "pt"
+    }, {
+      t: "Работаю в нескольких городах",
+      v: "multi"
+    }, {
+      t: "Другое",
+      v: "other",
+      freeText: true
     }]
   }, {
     id: "rent",
     type: "input",
     q: "Сколько платите за кабинет в месяц?",
+    hint: "Включая коммунальные: арнона, свет, вода, уборка, интернет и т.д.",
     placeholder: "Например, 5000"
+  }, {
+    id: "invest",
+    type: "input",
+    q: "Сколько вложили в ремонт и оборудование кабинета?",
+    hint: "Примерная сумма за всё время",
+    placeholder: "Например, 40000",
+    optional: true
   }, {
     id: "hours",
     q: "Сколько часов в неделю вы реально принимаете клиентов?",
@@ -273,15 +272,24 @@ const BRANCHES = {
     }]
   }, {
     id: "demand",
-    q: "Как у вас с записью?",
+    q: "Насколько вы загружены клиентами сейчас?",
     opts: [{
-      t: "Запись полная",
-      v: "full"
+      t: "Клиентов слишком много",
+      v: "over"
     }, {
-      t: "Хочу больше клиентов",
-      v: "more"
+      t: "Запись полная, клиенты качественные",
+      v: "full_good"
     }, {
-      t: "Только начинаю",
+      t: "Запись полная, но много проблемных",
+      v: "full_bad"
+    }, {
+      t: "Хочу больше любых клиентов",
+      v: "more_any"
+    }, {
+      t: "Хочу больше качественных клиентов",
+      v: "more_good"
+    }, {
+      t: "Только начинаю, ищу клиентов",
       v: "start"
     }]
   }],
@@ -433,7 +441,8 @@ function computeResult(role, a) {
   const info = {};
   if (role === "master") {
     const paysRent = a.workspace === "own" || a.workspace === "salon";
-    const cityOk = a.city !== "other";
+    // Коворкинги есть в Ашдоде и Петах-Тикве; в остальных городах — только рекомендация
+    const cityOk = a.city === "ashdod" || a.city === "pt" || a.city === "multi";
     const minRate = (SPACE_RATES[a.spec] || SPACE_RATES.other)[90];
     if (paysRent && a.rent > 0 && cityOk) {
       const {
@@ -444,15 +453,16 @@ function computeResult(role, a) {
       if (space > 0) {
         details.space = `Ваши ~${Math.round(a.hours * 4.3)} ч/мес по абонементу ${tier} ч — ₪${fmt(cost)} вместо ₪${fmt(a.rent)} аренды`;
       } else {
-        info.space = `При вашей загрузке аренда окупается. А для гибких часов или второго города — кабинет от ₪${minRate}/ч без обязательств`;
+        info.space = a.invest > 0 ? `Вы вложили ₪${fmt(a.invest)} в свой кабинет. Beauty Space — готовое премиальное пространство без новых вложений: поднимите чек на 10–20% и работайте меньше` : `Премиальный подход Beauty Space позволит поднять чек на 10–20% и сэкономить часы: работать меньше, а зарабатывать больше`;
       }
     } else if (!cityOk) {
-      info.space = `Наши коворкинги — в Петах-Тикве и Ашдоде. Будете рядом — кабинет по часам от ₪${minRate}/ч, без фиксированной аренды`;
+      info.space = `Наши коворкинги — в Ашдоде и Петах-Тикве. Будете рядом — кабинет по часам от ₪${minRate}/ч, без фиксированной аренды`;
     } else {
       info.space = `Приём дома — потолок по чеку. Профессиональный кабинет от ₪${minRate}/ч поднимает статус и цену услуги — без фиксированной аренды`;
     }
     crm = round10(a.noshow * a.check * 0.4 + (a.base === "crm" ? 0 : 400) - CRM_MONTHLY);
-    if (a.demand === "more" || a.demand === "start") {
+    // Хотят больше клиентов или начинают — маркетплейс приводит поток
+    if (a.demand === "more_any" || a.demand === "more_good" || a.demand === "start") {
       market = round10(3 * a.check);
       details.market = `+2–4 новых клиента в месяц ≈ ₪${fmt(round10(2 * a.check))}–${fmt(round10(4 * a.check))}`;
     }
@@ -607,9 +617,11 @@ function App() {
     };
     setAnswers(next);
     let s = step + 1;
+    // Кто не платит за кабинет (дом/выезд) — пропускаем вопросы про аренду и вложения
     if (branchKey === "master" && qid === "city" && (next.workspace === "home" || next.workspace === "mobile")) {
       next.rent = 0;
-      s = step + 2;
+      next.invest = 0;
+      s = step + 3;
     }
     if (s >= questions.length) finish(next);else setStep(s);
   };
@@ -648,10 +660,13 @@ function App() {
     byProduct = {},
     byCity = {};
   const CITY_LABELS = {
-    pt: "Петах-Тиква",
     ashdod: "Ашдод",
-    both: "Оба города",
-    other: "Другой город"
+    rishon: "Ришон-ле-Цион",
+    ta: "Тель-Авив",
+    netanya: "Нетания",
+    pt: "Петах-Тиква",
+    multi: "Несколько городов",
+    other: "Другое"
   };
   resps.forEach(r => {
     byRole[r.role] = (byRole[r.role] || 0) + 1;
@@ -792,13 +807,20 @@ function App() {
       marginTop: 8,
       lineHeight: 1.35
     }
-  }, questions[step].q), questions[step].type === "input" ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
+  }, questions[step].q), questions[step].hint && /*#__PURE__*/React.createElement("p", {
+    style: {
+      color: "#9A9AA6",
+      fontSize: 13,
+      marginTop: 8,
+      lineHeight: 1.45
+    }
+  }, questions[step].hint), questions[step].type === "input" ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
     className: "input",
     type: "text",
     inputMode: "numeric",
     placeholder: questions[step].placeholder || "",
     value: numInput,
-    onChange: e => setNumInput(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))
+    onChange: e => setNumInput(e.target.value.replace(/[^0-9]/g, "").slice(0, 7))
   }), /*#__PURE__*/React.createElement("button", {
     className: "btnMain",
     onClick: () => {
@@ -816,7 +838,7 @@ function App() {
       pick(questions[step].id, 0);
       setNumInput("");
     }
-  }, "Не плачу аренду")) : questions[step].opts.map(o => /*#__PURE__*/React.createElement("button", {
+  }, questions[step].optional ? "Пропустить" : "Не плачу за кабинет")) : questions[step].opts.map(o => /*#__PURE__*/React.createElement("button", {
     key: o.t,
     className: "btnOpt",
     onClick: () => pick(questions[step].id, o.v)
@@ -1380,12 +1402,9 @@ function App() {
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));
 }
-// старт после полной готовности DOM
 if (document.readyState === 'loading'){
   document.addEventListener('DOMContentLoaded', function(){ runSteps(0); });
-} else {
-  runSteps(0);
-}
+} else { runSteps(0); }
 </script>
 </body>
 </html>
