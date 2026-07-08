@@ -30,25 +30,16 @@ function loadScript(urls, cb){
   tryNext();
 }
 var steps = [
-  ['https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js',
-   'https://unpkg.com/react@18.2.0/umd/react.production.min.js'],
-  ['https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js',
-   'https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js'],
-  ['https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
-   'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js'],
-  ['https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
-   'https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js'],
-  ['https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js',
-   'https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-database-compat.js']
+  ['https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js','https://unpkg.com/react@18.2.0/umd/react.production.min.js'],
+  ['https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js','https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js'],
+  ['https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js','https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js'],
+  ['https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js','https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js'],
+  ['https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js','https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-database-compat.js']
 ];
 function runSteps(idx){
   if (idx >= steps.length){ startApp(); return; }
   loadScript(steps[idx], function(err){
-    if (err){
-      if (idx >= 2){ runSteps(idx+1); return; }
-      showFatal('Не удалось загрузить React: ' + err.message);
-      return;
-    }
+    if (err){ if (idx >= 2){ runSteps(idx+1); return; } showFatal('Не удалось загрузить React: ' + err.message); return; }
     runSteps(idx+1);
   });
 }
@@ -103,25 +94,28 @@ try {
 } catch (e) {
   console.error("Firebase init failed", e);
 }
-const waLink = productName => `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent("Здравствуйте! Woman Beauty Forum 2026, хочу начать экономить!")}`;
+const waLink = productName => `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent("Здравствуйте! Woman Beauty Forum 2026, хочу зарабатывать больше!")}`;
 const PRODUCTS = {
   space: {
     name: "Beauty Space",
     tag: "Бьюти-коворкинг: кабинет по часам",
     color: "#00E7DF",
-    dark: "#008F8A"
+    dark: "#008F8A",
+    benefits: ["Оборудованные кабинеты, расходники включены", "Платите только за часы — без договора и залога", "Поток клиентов от площадки и сообщества", "Премиальная локация — выше чек"]
   },
   crm: {
     name: "Beauty Calendar",
-    tag: "Запись, напоминания, база клиентов. Повышает лояльность и возвращаемость, экономит время и поднимает чек до +10%",
+    tag: "Запись, напоминания, база клиентов",
     color: "#7070FF",
-    dark: "#4B4BD6"
+    dark: "#4B4BD6",
+    benefits: ["Онлайн-запись 24/7 и умные напоминания", "Меньше отмен и неявок, выше возвращаемость", "База клиентов и история визитов под рукой", "Экономия времени и рост чека до +10%"]
   },
   market: {
     name: "Beauty Market",
     tag: "Маркетплейс бьюти-услуг в Израиле",
     color: "#FF7171",
-    dark: "#E04A4A"
+    dark: "#E04A4A",
+    benefits: ["Новые клиенты ищут вас сами", "Витрина услуг с ценами и отзывами", "Запись напрямую с профиля"]
   }
 };
 const ROLES = {
@@ -946,7 +940,28 @@ function App() {
         borderRadius: 8,
         padding: "8px 10px"
       }
-    }, result.details[p.key]));
+    }, result.details[p.key]), pr.benefits && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 12
+      }
+    }, pr.benefits.map(b => /*#__PURE__*/React.createElement("div", {
+      key: b,
+      style: {
+        display: "flex",
+        gap: 8,
+        alignItems: "flex-start",
+        marginTop: 7,
+        fontSize: 13,
+        color: "#3A3A44",
+        lineHeight: 1.4
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: pr.dark,
+        fontWeight: 700,
+        flexShrink: 0
+      }
+    }, "✓"), /*#__PURE__*/React.createElement("span", null, b)))));
   }), result.info && result.info.space && /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: {
@@ -965,7 +980,28 @@ function App() {
       marginTop: 8,
       lineHeight: 1.5
     }
-  }, result.info.space)))), /*#__PURE__*/React.createElement("a", {
+  }, result.info.space), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 12
+    }
+  }, PRODUCTS.space.benefits.map(b => /*#__PURE__*/React.createElement("div", {
+    key: b,
+    style: {
+      display: "flex",
+      gap: 8,
+      alignItems: "flex-start",
+      marginTop: 7,
+      fontSize: 13,
+      color: "#3A3A44",
+      lineHeight: 1.4
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: PRODUCTS.space.dark,
+      fontWeight: 700,
+      flexShrink: 0
+    }
+  }, "✓"), /*#__PURE__*/React.createElement("span", null, b))))))), /*#__PURE__*/React.createElement("a", {
     href: waLink(PRODUCTS[result.primary].name),
     target: "_blank",
     rel: "noreferrer"
@@ -974,7 +1010,7 @@ function App() {
     style: {
       marginTop: 20
     }
-  }, "Начать экономить")), /*#__PURE__*/React.createElement("button", {
+  }, "Хочу зарабатывать больше")), /*#__PURE__*/React.createElement("button", {
     className: "btnGhost",
     onClick: saveShot,
     style: {
