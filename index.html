@@ -10,7 +10,6 @@
 </head>
 <body>
 <div id="root"></div>
-
 <script>
 function showFatal(msg){
   var r = document.getElementById('root');
@@ -37,8 +36,10 @@ var steps = [
    'https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js'],
   ['https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
    'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js'],
-  ['https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js'],
-  ['https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js']
+  ['https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
+   'https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.js'],
+  ['https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js',
+   'https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-database-compat.js']
 ];
 function runSteps(idx){
   if (idx >= steps.length){ startApp(); return; }
@@ -59,7 +60,6 @@ window.addEventListener('error', function(e){
   if (!document.getElementById('root').hasChildNodes()){ showFatal((e && e.message) || 'неизвестная ошибка'); }
 });
 </script>
-
 <script>
 function APP_CODE(){
 const {
@@ -94,14 +94,16 @@ const FIREBASE_CONFIG = {
 
 let db = null;
 try {
-  if (FIREBASE_CONFIG.apiKey !== "TODO") {
+  if (typeof firebase !== "undefined" && FIREBASE_CONFIG.apiKey !== "TODO") {
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.database();
+  } else if (typeof firebase === "undefined") {
+    console.warn("Firebase SDK не загрузился — квиз работает, статистика недоступна");
   }
 } catch (e) {
   console.error("Firebase init failed", e);
 }
-const waLink = productName => `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(`Здравствуйте! Я с вечера Woman Beauty Forum 2026 в Ашдоде, хочу начать экономить. Мой результат: ${productName}`)}`;
+const waLink = productName => `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent("Здравствуйте! Woman Beauty Forum 2026, хочу начать экономить!")}`;
 const PRODUCTS = {
   space: {
     name: "Beauty Space",
